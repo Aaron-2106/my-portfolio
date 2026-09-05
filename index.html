@@ -17,6 +17,16 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
+    // 로컬 스토리지 헬퍼 함수
+    const getLocal = (key, fallback) => {
+      try {
+        const saved = localStorage.getItem(key);
+        return saved ? JSON.parse(saved) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    };
+
     const globalStyles = `
       @import url('https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
       
@@ -252,8 +262,10 @@
     function App() {
       const [currentPage, setCurrentPage] = useState('work'); 
       const [isMenuOpen, setIsMenuOpen] = useState(false);
-      const [projects, setProjects] = useState(INITIAL_PROJECTS);
-      const [playgroundItems, setPlaygroundItems] = useState(INITIAL_PLAYGROUND);
+      
+      // LocalStorage 연동으로 새로고침해도 유지
+      const [projects, setProjects] = useState(() => getLocal('ym_projects', INITIAL_PROJECTS));
+      const [playgroundItems, setPlaygroundItems] = useState(() => getLocal('ym_playground', INITIAL_PLAYGROUND));
       
       const [activeFilter, setActiveFilter] = useState('ALL');
       const [hoveredId, setHoveredId] = useState(null);
@@ -285,23 +297,40 @@
       const [draggedBlockIdx, setDraggedBlockIdx] = useState(null);
       const [dragOverBlockIdx, setDragOverBlockIdx] = useState(null);
 
-      const [aboutData, setAboutData] = useState({
+      const [aboutData, setAboutData] = useState(() => getLocal('ym_about', {
         name: 'YOUR NAME',
         profileUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
         bio: 'We are an interactive minimalism studio pushing the boundaries of neo-brutalism and creative web experiences.\n\nWe focus on strong typography, micro-interactions, and progressive disclosure to build brands that are impossible to ignore.',
         tools: ['After Effects', 'Photoshop', 'Illustrator', 'Figma', 'Procreate', 'Blender']
-      });
+      }));
       const [aboutImageFile, setAboutImageFile] = useState(null);
       const [aboutToolInput, setAboutToolInput] = useState('');
 
-      const [contactData, setContactData] = useState({
+      const [contactData, setContactData] = useState(() => getLocal('ym_contact', {
         email: 'hello@youandme.com',
         instagram: 'https://instagram.com',
         linkedin: 'https://linkedin.com',
         behance: 'https://behance.net'
-      });
+      }));
 
       const [showSocials, setShowSocials] = useState(false);
+
+      // 데이터 변경 시 자동 저장
+      useEffect(() => {
+        try { localStorage.setItem('ym_projects', JSON.stringify(projects)); } catch (e) {}
+      }, [projects]);
+
+      useEffect(() => {
+        try { localStorage.setItem('ym_playground', JSON.stringify(playgroundItems)); } catch (e) {}
+      }, [playgroundItems]);
+
+      useEffect(() => {
+        try { localStorage.setItem('ym_about', JSON.stringify(aboutData)); } catch (e) {}
+      }, [aboutData]);
+
+      useEffect(() => {
+        try { localStorage.setItem('ym_contact', JSON.stringify(contactData)); } catch (e) {}
+      }, [contactData]);
 
       const filteredProjects = projects.filter(p => activeFilter === 'ALL' ? true : p.categories.includes(activeFilter));
       const filteredPlayground = playgroundItems.filter(p => activeFilter === 'ALL' ? true : p.categories.includes(activeFilter));
@@ -358,52 +387,80 @@
         else { setAuthError(true); }
       };
 
+      // 파일 업로드 시 영구 보관용 Base64 변환 함수
+      const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = error => reject(error);
+        });
+      };
+
       const addDetailBlock = (type) => setNewProject(prev => ({ ...prev, detailBlocks: [...prev.detailBlocks, { id: 'db_' + Date.now(), type, content: '', mediaType: '', align: 'left', font: 'sans' }] }));
       const removeDetailBlock = (id) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.filter(b => b.id !== id) }));
       const updateDetailBlockText = (id, text) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, content: text } : b) }));
       const updateDetailBlockStyle = (id, field, value) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, [field]: value } : b) }));
-      const updateDetailBlockMedia = (id, file) => {
-        if (!file) return; const isVideo = file.type.startsWith('video/');
-        setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, content: file, mediaType: isVideo ? 'video' : 'image' } : b) }));
+      const updateDetailBlockMedia = async (id, file) => {
+        if (!file) return; 
+        const isVideo = file.type.startsWith('video/');
+        const base64 = await fileToBase64(file);
+        setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, content: base64, mediaType: isVideo ? 'video' : 'image' } : b) }));
       };
 
-      const handleSaveProject = (e) => {
+      const handleSaveProject = async (e) => {
         e.preventDefault(); setFormError("");
         if (!newProject.title || newProject.categories.length === 0) { setFormError("Title and Category are required."); return; }
+        
         let urlToSave = editingId ? projects.find(p => p.id === editingId)?.mediaUrl : '';
         let typeToSave = editingId ? projects.find(p => p.id === editingId)?.mediaType : 'image';
-        if (coverMedia) { urlToSave = URL.createObjectURL(coverMedia); typeToSave = coverMedia.type.startsWith('video/') ? 'video' : 'image'; } 
-        else if (!editingId && !coverMedia) { setFormError("Cover media is required."); return; }
-        const processedBlocks = newProject.detailBlocks.map(block => { if (block.type === 'media' && block.content instanceof File) { return { ...block, content: URL.createObjectURL(block.content) }; } return block; });
-        const finalProject = { ...newProject, detailBlocks: processedBlocks, mediaUrl: urlToSave, mediaType: typeToSave };
+        
+        if (coverMedia) { 
+          urlToSave = await fileToBase64(coverMedia); 
+          typeToSave = coverMedia.type.startsWith('video/') ? 'video' : 'image'; 
+        } else if (!editingId && !coverMedia) { 
+          setFormError("Cover media is required."); return; 
+        }
+
+        const finalProject = { ...newProject, mediaUrl: urlToSave, mediaType: typeToSave };
         if (editingId) setProjects(projects.map(p => p.id === editingId ? { ...finalProject, id: p.id } : p));
         else setProjects([{ ...finalProject, id: 'p' + Date.now() }, ...projects]);
         resetAdminState();
       };
 
-      const handleSavePlayground = (e) => {
+      const handleSavePlayground = async (e) => {
         e.preventDefault(); setFormError("");
         if (newPlayground.categories.length === 0) { setFormError("Category is required."); return; }
         let urlToSave = editingId ? playgroundItems.find(p => p.id === editingId)?.mediaUrl : '';
         let typeToSave = editingId ? playgroundItems.find(p => p.id === editingId)?.mediaType : 'image';
-        if (pgMedia) { urlToSave = URL.createObjectURL(pgMedia); typeToSave = pgMedia.type.startsWith('video/') ? 'video' : 'image'; } 
-        else if (!editingId && !pgMedia) { setFormError("Media is required."); return; }
+        if (pgMedia) { 
+          urlToSave = await fileToBase64(pgMedia); 
+          typeToSave = pgMedia.type.startsWith('video/') ? 'video' : 'image'; 
+        } else if (!editingId && !pgMedia) { 
+          setFormError("Media is required."); return; 
+        }
         const finalItem = { ...newPlayground, mediaUrl: urlToSave, mediaType: typeToSave };
         if (editingId) setPlaygroundItems(playgroundItems.map(p => p.id === editingId ? { ...finalItem, id: p.id } : p));
         else setPlaygroundItems([{ ...finalItem, id: 'pg' + Date.now() }, ...playgroundItems]);
         resetAdminState();
       };
 
-      const handleSaveAbout = (e) => {
+      const handleSaveAbout = async (e) => {
         e.preventDefault();
         let urlToSave = aboutData.profileUrl;
-        if (aboutImageFile) { urlToSave = URL.createObjectURL(aboutImageFile); }
+        if (aboutImageFile) { 
+          urlToSave = await fileToBase64(aboutImageFile); 
+        }
         setAboutData({ ...aboutData, profileUrl: urlToSave });
         setFormError("About page updated successfully!"); setTimeout(() => setFormError(""), 3000);
       };
+
       const handleSaveContact = (e) => {
-        e.preventDefault(); setFormError("Contact info updated successfully!"); setTimeout(() => setFormError(""), 3000);
+        e.preventDefault(); 
+        setContactData({ ...contactData });
+        setFormError("Contact info updated successfully!"); setTimeout(() => setFormError(""), 3000);
       };
+
       const resetAdminState = () => {
         setAdminView('list'); setEditingId(null); setFormError("");
         setNewProject({ title: '', categories: [], year: '2026', projectType: 'Individual', tools: [], description: '', detailBlocks: [] });
@@ -419,6 +476,7 @@
         if (isPlayground) setPlaygroundItems(reordered); else setProjects(reordered);
         setDraggedIdx(null); setDragOverIdx(null);
       };
+
       const handleBlockDrop = (e, index) => {
         e.preventDefault(); if (draggedBlockIdx === null) return;
         const list = [...newProject.detailBlocks]; const draggedItem = list[draggedBlockIdx];
@@ -426,6 +484,7 @@
         setNewProject(prev => ({ ...prev, detailBlocks: list }));
         setDraggedBlockIdx(null); setDragOverBlockIdx(null);
       };
+
       const handleAddCustomTool = (e) => {
         e.preventDefault(); const tool = customToolInput.trim();
         if (tool && !availableTools.includes(tool)) {
@@ -496,7 +555,6 @@
             <>
               {renderNavFilters()}
               
-              {/* Scroll Progress / Project Indicator (Right Middle) */}
               <div className="fixed right-4 md:right-10 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-3 pointer-events-auto mix-blend-difference">
                 {(currentPage === 'work' ? filteredProjects : filteredPlayground).map((item, index) => (
                   <button 
@@ -530,15 +588,12 @@
               </div>
               
               <main className="relative z-10 flex flex-col items-center w-full pt-[45vh] pb-[55vh]">
-                {filteredProjects.map((project, index) => (
+                {filteredProjects.map((project) => (
                   <div key={project.id} className="project-item relative w-full flex items-center justify-center py-2 md:py-4 group">
-                    
-                    {/* 좌측 카테고리 정보 */}
                     <div className={`hidden md:block absolute left-[15%] text-xs font-mono tracking-widest transition-all duration-500 ease-out pointer-events-none ${hoveredId === project.id ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
                       {project.categories.join(', ')} <br/> <span className="text-gray-400">{project.projectType}</span>
                     </div>
                     
-                    {/* 텍스트 영역 */}
                     <div 
                       onClick={() => setSelectedProject(project)} 
                       onMouseEnter={() => setHoveredId(project.id)} 
@@ -552,11 +607,9 @@
                       </h2>
                     </div>
 
-                    {/* 우측 연도 정보 */}
                     <div className={`hidden md:block absolute right-[15%] text-xs font-mono transition-all duration-500 ease-out pointer-events-none ${hoveredId === project.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
                       {project.year}
                     </div>
-                    
                   </div>
                 ))}
               </main>
@@ -590,7 +643,6 @@
           {currentPage === 'about' && (
             <main className="relative z-10 w-full min-h-screen pt-32 pb-24 px-6 md:px-12 flex items-center justify-center overflow-hidden">
               <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-10 md:gap-16 items-center justify-center">
-                
                 <div className="w-full md:w-[45%] flex justify-center items-center perspective-[1200px]">
                   <div className="relative group w-[75vw] md:w-[32vw] max-w-[400px] aspect-[3/4]">
                     <div className="w-full h-full bg-gray-200 overflow-hidden transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]"
@@ -648,7 +700,6 @@
           {/* EXPANDABLE SOCIAL LINKS */}
           {!selectedProject && !selectedPlaygroundItem && !showAdminModal && !showAuthModal && (
             <div className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-40 flex items-center gap-4 pointer-events-auto mix-blend-difference text-white h-10">
-              
               <button 
                 onClick={() => setShowSocials(!showSocials)}
                 className="flex items-center justify-center transition-transform duration-500 w-10 h-10 hover:scale-110"

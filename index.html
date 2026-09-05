@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PORTFOLIO | YOU&ME</title>
+  
+  <!-- CDN Scripts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const globalStyles = `
+      @import url('https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+      
+      body {
+        background-color: #F4F4F0;
+        color: #111;
+        overflow-x: hidden;
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      .font-anton { font-family: 'Anton', sans-serif; }
+      .font-mono { font-family: 'Space Mono', monospace; }
+      
+      ::-webkit-scrollbar { display: none; }
+      
+      .no-select { user-select: none; -webkit-user-select: none; }
+      .drag-over { border-top: 2px solid #3b82f6 !important; }
+
+      .playground-item:hover img, .playground-item:hover video {
+        transform: scale(1.05);
+      }
+    `;
+
+    const FILTERS = ['ALL', 'MOTION', 'GRAPHIC', 'UI/UX', 'AI'];
+
+    const InteractiveO = () => {
+      const containerRef = useRef(null);
+      const eyesRef = useRef(null);
+
+      useEffect(() => {
+        let animationFrameId;
+        const handleMouseMove = (e) => {
+          if (!containerRef.current || !eyesRef.current) return;
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = requestAnimationFrame(() => {
+            const rect = containerRef.current.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dx = e.clientX - centerX;
+            const dy = e.clientY - centerY;
+            const angle = Math.atan2(dy, dx);
+            const maxRadius = 4; 
+            const distance = Math.min(Math.sqrt(dx * dx + dy * dy) * 0.015, maxRadius);
+            const tx = Math.cos(angle) * distance;
+            const ty = Math.sin(angle) * distance;
+            if (eyesRef.current) {
+              eyesRef.current.style.transform = `translate(${tx}px, ${ty}px)`;
+            }
+          });
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          cancelAnimationFrame(animationFrameId);
+        };
+      }, []);
+
+      return (
+        <span ref={containerRef} className="relative inline-flex items-center justify-center mx-[2px] rounded-[40%] border-[3px] md:border-[4px] border-white"
+          style={{ width: '0.75em', height: '0.85em', transform: 'translateY(1px)' }}>
+          <span ref={eyesRef} className="flex gap-[3px]" style={{ transition: 'transform 0.05s ease-out' }}>
+            <span className="w-[3px] h-[7px] md:w-[5px] md:h-[9px] bg-white rounded-full block"></span>
+            <span className="w-[3px] h-[7px] md:w-[5px] md:h-[9px] bg-white rounded-full block"></span>
+          </span>
+        </span>
+      );
+    };
+
+    const CustomVideoPlayer = ({ src, className = "" }) => {
+      const videoRef = useRef(null);
+      const [isPlaying, setIsPlaying] = useState(true);
+      const [isMuted, setIsMuted] = useState(true);
+      const [progress, setProgress] = useState(0);
+      const [currentTime, setCurrentTime] = useState(0);
+      const [duration, setDuration] = useState(0);
+      const [showControls, setShowControls] = useState(false);
+
+      const togglePlay = (e) => {
+        if (e) e.stopPropagation();
+        if (videoRef.current.paused) { videoRef.current.play(); setIsPlaying(true); } 
+        else { videoRef.current.pause(); setIsPlaying(false); }
+      };
+      const toggleMute = (e) => {
+        if (e) e.stopPropagation();
+        videoRef.current.muted = !isMuted; setIsMuted(!isMuted);
+      };
+      const toggleFullScreen = (e) => {
+        if (e) e.stopPropagation();
+        if (videoRef.current.requestFullscreen) videoRef.current.requestFullscreen();
+      };
+      const handleTimeUpdate = () => {
+        if (!videoRef.current) return;
+        setCurrentTime(videoRef.current.currentTime);
+        setProgress((videoRef.current.currentTime / videoRef.current.duration) * 100);
+      };
+      const handleLoadedMetadata = () => { setDuration(videoRef.current.duration); };
+      const handleProgressClick = (e) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        videoRef.current.currentTime = pos * duration;
+      };
+      const formatTime = (time) => {
+        if (isNaN(time)) return "0:00";
+        const m = Math.floor(time / 60); const s = Math.floor(time % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+      };
+
+      return (
+        <div className={`relative w-full flex justify-center bg-black group overflow-hidden ${className}`}
+          onMouseEnter={() => setShowControls(true)} onMouseLeave={() => setShowControls(false)}>
+          <video ref={videoRef} src={src} autoPlay loop muted={isMuted} playsInline
+            onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onClick={togglePlay}
+            className="w-full h-full object-contain cursor-pointer" />
+          <div className={`absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-300 flex flex-col gap-4 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="w-full h-1 bg-gray-500/50 cursor-pointer group/bar relative rounded-full" onClick={handleProgressClick}>
+              <div className="absolute top-0 left-0 h-full bg-white transition-all duration-75 rounded-full" style={{ width: `${progress}%` }} />
+              <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none" style={{ left: `${progress}%`, transform: 'translate(-50%, -50%)' }} />
+            </div>
+            <div className="flex justify-between items-center text-white font-mono text-xs tracking-widest">
+              <div className="flex items-center gap-6">
+                <button onClick={togglePlay} className="hover:text-gray-400 transition-colors font-bold uppercase">{isPlaying ? 'Pause' : 'Play'}</button>
+                <button onClick={toggleMute} className="hover:text-gray-400 transition-colors font-bold uppercase">{isMuted ? 'Unmute' : 'Mute'}</button>
+                <span className="opacity-70 hidden md:block">{formatTime(currentTime)} / {formatTime(duration)}</span>
+              </div>
+              <div className="flex items-center gap-6">
+                <span className="opacity-50 text-[10px] hidden sm:block border border-white/20 px-2 py-0.5 rounded">HD</span>
+                <button onClick={toggleFullScreen} className="hover:text-gray-400 transition-colors font-bold uppercase">Fullscreen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const INITIAL_PROJECTS = [
+      { 
+        id: 'p1', title: 'NEW DAMAGE', categories: ['GRAPHIC', 'AI'], year: '2025', projectType: 'Individual', tools: ['After Effects', 'Photoshop'], 
+        mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-2566-large.mp4',
+        description: '인공지능(AI)을 활용하여 제네러티브 아트를 생성하고, 이를 그래픽 디자인과 결합한 실험적인 프로젝트입니다.',
+        detailBlocks: [
+          { id: 'db1', type: 'text', content: '초기 컨셉은 무질서한 데이터에서 질서를 찾는 과정에서 출발했습니다.', align: 'center', font: 'sans' },
+          { id: 'db2', type: 'media', mediaType: 'image', content: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2564&auto=format&fit=crop' }
+        ]
+      },
+      { 
+        id: 'p2', title: 'KIRO STUDIO', categories: ['UI/UX'], year: '2024', projectType: 'Group', tools: ['Figma', 'Illustrator'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
+        description: '미니멀리즘과 공간의 미학을 강조한 UI/UX 리뉴얼 프로젝트입니다.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p3', title: 'NEON PULSE', categories: ['MOTION', 'GRAPHIC'], year: '2026', projectType: 'Individual', tools: ['Cinema 4D', 'After Effects'], 
+        mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-liquid-neon-shapes-in-motion-2661-large.mp4',
+        description: '네온 컬러 쉐이프의 역동적인 움직임을 통해 사운드트랙의 비트를 시각화한 모션 그래픽 작업입니다.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p4', title: 'SILENT ECHO', categories: ['GRAPHIC'], year: '2023', projectType: 'Individual', tools: ['Photoshop'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1974&auto=format&fit=crop',
+        description: '레트로 테크놀로지와 향수를 자극하는 질감을 표현한 타이포그래피 포스터 시리즈.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p5', title: 'VOID ARCH', categories: ['UI/UX', 'AI'], year: '2025', projectType: 'Group', tools: ['Figma', 'Midjourney'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop',
+        description: '생성형 AI로 만들어낸 초현실적인 건축물 이미지를 기반으로 제작된 몰입형 웹 인터페이스입니다.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p6', title: 'FLUID DYNAMICS', categories: ['MOTION'], year: '2024', projectType: 'Individual', tools: ['Blender'], 
+        mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4',
+        description: '자연의 파동과 물결의 움직임을 3D 파티클 시뮬레이션으로 재해석한 영상입니다.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p7', title: 'CHROMA VIBE', categories: ['GRAPHIC'], year: '2025', projectType: 'Individual', tools: ['Illustrator'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?q=80&w=1974&auto=format&fit=crop',
+        description: '강렬한 보색 대비와 유기적인 곡선을 결합하여 감정의 흐름을 표현한 그래픽 아트.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p8', title: 'NEURAL NET', categories: ['AI', 'MOTION'], year: '2026', projectType: 'Group', tools: ['TouchDesigner'], 
+        mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-technology-particle-background-3131-large.mp4',
+        description: '데이터의 흐름을 실시간으로 시각화하여 상호작용 가능한 미디어 아트로 구현한 전시 프로젝트입니다.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p9', title: 'MONOLITH', categories: ['UI/UX'], year: '2023', projectType: 'Individual', tools: ['Figma', 'Protopie'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?q=80&w=2000&auto=format&fit=crop',
+        description: '자연 친화적인 브랜드 아이덴티티를 스크롤 기반 인터랙션으로 풀어낸 브랜드 웹사이트.',
+        detailBlocks: []
+      },
+      { 
+        id: 'p10', title: 'ZERO GRAVITY', categories: ['GRAPHIC', 'AI'], year: '2026', projectType: 'Individual', tools: ['Photoshop', 'Stable Diffusion'], 
+        mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2564&auto=format&fit=crop',
+        description: '무중력 상태의 시공간 왜곡을 주제로 한 초현실주의 디지털 콜라주 작품입니다.',
+        detailBlocks: []
+      }
+    ];
+
+    const INITIAL_PLAYGROUND = [
+      { id: 'pg1', categories: ['AI'], mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop' },
+      { id: 'pg2', categories: ['MOTION'], mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4' },
+      { id: 'pg3', categories: ['GRAPHIC'], mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?q=80&w=1974&auto=format&fit=crop' },
+      { id: 'pg4', categories: ['UI/UX'], mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1974&auto=format&fit=crop' },
+      { id: 'pg5', categories: ['AI'], mediaType: 'video', mediaUrl: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-2566-large.mp4' },
+      { id: 'pg6', categories: ['GRAPHIC'], mediaType: 'image', mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop' },
+    ];
+
+    const MediaBackground = ({ project, isHovered }) => {
+      const videoRef = useRef(null);
+      useEffect(() => {
+        if (project.mediaType === 'video' && videoRef.current) {
+          if (isHovered) videoRef.current.play().catch(() => {});
+          else { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+        }
+      }, [isHovered, project.mediaType]);
+      return (
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[50vh] md:w-[40vw] md:h-[60vh] transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] origin-center pointer-events-none ${isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
+          {project.mediaType === 'video' ? (
+            <video ref={videoRef} src={project.mediaUrl} loop muted playsInline className="w-full h-full object-cover shadow-2xl" />
+          ) : (
+            <img src={project.mediaUrl} alt="cover" className="w-full h-full object-cover shadow-2xl" />
+          )}
+          <div className="absolute inset-0 bg-black/20 mix-blend-multiply" />
+        </div>
+      );
+    };
+
+    function App() {
+      const [currentPage, setCurrentPage] = useState('work'); 
+      const [isMenuOpen, setIsMenuOpen] = useState(false);
+      const [projects, setProjects] = useState(INITIAL_PROJECTS);
+      const [playgroundItems, setPlaygroundItems] = useState(INITIAL_PLAYGROUND);
+      
+      const [activeFilter, setActiveFilter] = useState('ALL');
+      const [hoveredId, setHoveredId] = useState(null);
+      const [selectedProject, setSelectedProject] = useState(null);
+      const [selectedPlaygroundItem, setSelectedPlaygroundItem] = useState(null);
+
+      const [activeProjectIdx, setActiveProjectIdx] = useState(0);
+
+      const [showAuthModal, setShowAuthModal] = useState(false);
+      const [pwd, setPwd] = useState("");
+      const [authError, setAuthError] = useState(false);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [showAdminModal, setShowAdminModal] = useState(false);
+      
+      const [adminTab, setAdminTab] = useState('projects');
+      const [adminView, setAdminView] = useState('list');
+      const [editingId, setEditingId] = useState(null);
+      const [formError, setFormError] = useState("");
+      
+      const [newProject, setNewProject] = useState({ title: '', categories: [], year: '2026', projectType: 'Individual', tools: [], description: '', detailBlocks: [] });
+      const [coverMedia, setCoverMedia] = useState(null);
+      const [availableTools, setAvailableTools] = useState(['After Effects', 'Procreate', 'Procreate Dreams', 'Photoshop', 'Illustrator', 'Figma', 'Blender', 'Unity']);
+      const [customToolInput, setCustomToolInput] = useState('');
+      const [newPlayground, setNewPlayground] = useState({ categories: [] });
+      const [pgMedia, setPgMedia] = useState(null);
+
+      const [draggedIdx, setDraggedIdx] = useState(null);
+      const [dragOverIdx, setDragOverIdx] = useState(null);
+      const [draggedBlockIdx, setDraggedBlockIdx] = useState(null);
+      const [dragOverBlockIdx, setDragOverBlockIdx] = useState(null);
+
+      const [aboutData, setAboutData] = useState({
+        name: 'YOUR NAME',
+        profileUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
+        bio: 'We are an interactive minimalism studio pushing the boundaries of neo-brutalism and creative web experiences.\n\nWe focus on strong typography, micro-interactions, and progressive disclosure to build brands that are impossible to ignore.',
+        tools: ['After Effects', 'Photoshop', 'Illustrator', 'Figma', 'Procreate', 'Blender']
+      });
+      const [aboutImageFile, setAboutImageFile] = useState(null);
+      const [aboutToolInput, setAboutToolInput] = useState('');
+
+      const [contactData, setContactData] = useState({
+        email: 'hello@youandme.com',
+        instagram: 'https://instagram.com',
+        linkedin: 'https://linkedin.com',
+        behance: 'https://behance.net'
+      });
+
+      const [showSocials, setShowSocials] = useState(false);
+
+      const filteredProjects = projects.filter(p => activeFilter === 'ALL' ? true : p.categories.includes(activeFilter));
+      const filteredPlayground = playgroundItems.filter(p => activeFilter === 'ALL' ? true : p.categories.includes(activeFilter));
+
+      useEffect(() => {
+        if ((currentPage !== 'work' && currentPage !== 'playground') || selectedProject || selectedPlaygroundItem || showAdminModal || showAuthModal) return;
+
+        let rafId;
+        const handleScroll = () => {
+          cancelAnimationFrame(rafId);
+          rafId = requestAnimationFrame(() => {
+            const targetClass = currentPage === 'work' ? '.project-item' : '.playground-item';
+            const elements = document.querySelectorAll(targetClass);
+            if (!elements.length) return;
+            
+            let closestIdx = 0;
+            let minDistance = Infinity;
+            const centerY = window.innerHeight / 2;
+
+            elements.forEach((el, index) => {
+              const rect = el.getBoundingClientRect();
+              const elCenterY = rect.top + rect.height / 2;
+              const distance = Math.abs(centerY - elCenterY);
+              
+              if (distance < minDistance) {
+                minDistance = distance;
+                closestIdx = index;
+              }
+            });
+
+            if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 10) {
+              closestIdx = elements.length - 1;
+            }
+
+            setActiveProjectIdx(closestIdx);
+          });
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        handleScroll(); 
+
+        return () => {
+          window.removeEventListener('scroll', handleScroll);
+          cancelAnimationFrame(rafId);
+        };
+      }, [currentPage, selectedProject, selectedPlaygroundItem, showAdminModal, showAuthModal, filteredProjects, filteredPlayground]);
+
+      const navigateTo = (page) => {
+        setCurrentPage(page); setIsMenuOpen(false); setActiveFilter('ALL'); window.scrollTo(0, 0);
+      };
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (pwd === "2106") { setIsAuthenticated(true); setShowAuthModal(false); setShowAdminModal(true); setPwd(""); setAuthError(false); } 
+        else { setAuthError(true); }
+      };
+
+      const addDetailBlock = (type) => setNewProject(prev => ({ ...prev, detailBlocks: [...prev.detailBlocks, { id: 'db_' + Date.now(), type, content: '', mediaType: '', align: 'left', font: 'sans' }] }));
+      const removeDetailBlock = (id) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.filter(b => b.id !== id) }));
+      const updateDetailBlockText = (id, text) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, content: text } : b) }));
+      const updateDetailBlockStyle = (id, field, value) => setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, [field]: value } : b) }));
+      const updateDetailBlockMedia = (id, file) => {
+        if (!file) return; const isVideo = file.type.startsWith('video/');
+        setNewProject(prev => ({ ...prev, detailBlocks: prev.detailBlocks.map(b => b.id === id ? { ...b, content: file, mediaType: isVideo ? 'video' : 'image' } : b) }));
+      };
+
+      const handleSaveProject = (e) => {
+        e.preventDefault(); setFormError("");
+        if (!newProject.title || newProject.categories.length === 0) { setFormError("Title and Category are required."); return; }
+        let urlToSave = editingId ? projects.find(p => p.id === editingId)?.mediaUrl : '';
+        let typeToSave = editingId ? projects.find(p => p.id === editingId)?.mediaType : 'image';
+        if (coverMedia) { urlToSave = URL.createObjectURL(coverMedia); typeToSave = coverMedia.type.startsWith('video/') ? 'video' : 'image'; } 
+        else if (!editingId && !coverMedia) { setFormError("Cover media is required."); return; }
+        const processedBlocks = newProject.detailBlocks.map(block => { if (block.type === 'media' && block.content instanceof File) { return { ...block, content: URL.createObjectURL(block.content) }; } return block; });
+        const finalProject = { ...newProject, detailBlocks: processedBlocks, mediaUrl: urlToSave, mediaType: typeToSave };
+        if (editingId) setProjects(projects.map(p => p.id === editingId ? { ...finalProject, id: p.id } : p));
+        else setProjects([{ ...finalProject, id: 'p' + Date.now() }, ...projects]);
+        resetAdminState();
+      };
+
+      const handleSavePlayground = (e) => {
+        e.preventDefault(); setFormError("");
+        if (newPlayground.categories.length === 0) { setFormError("Category is required."); return; }
+        let urlToSave = editingId ? playgroundItems.find(p => p.id === editingId)?.mediaUrl : '';
+        let typeToSave = editingId ? playgroundItems.find(p => p.id === editingId)?.mediaType : 'image';
+        if (pgMedia) { urlToSave = URL.createObjectURL(pgMedia); typeToSave = pgMedia.type.startsWith('video/') ? 'video' : 'image'; } 
+        else if (!editingId && !pgMedia) { setFormError("Media is required."); return; }
+        const finalItem = { ...newPlayground, mediaUrl: urlToSave, mediaType: typeToSave };
+        if (editingId) setPlaygroundItems(playgroundItems.map(p => p.id === editingId ? { ...finalItem, id: p.id } : p));
+        else setPlaygroundItems([{ ...finalItem, id: 'pg' + Date.now() }, ...playgroundItems]);
+        resetAdminState();
+      };
+
+      const handleSaveAbout = (e) => {
+        e.preventDefault();
+        let urlToSave = aboutData.profileUrl;
+        if (aboutImageFile) { urlToSave = URL.createObjectURL(aboutImageFile); }
+        setAboutData({ ...aboutData, profileUrl: urlToSave });
+        setFormError("About page updated successfully!"); setTimeout(() => setFormError(""), 3000);
+      };
+      const handleSaveContact = (e) => {
+        e.preventDefault(); setFormError("Contact info updated successfully!"); setTimeout(() => setFormError(""), 3000);
+      };
+      const resetAdminState = () => {
+        setAdminView('list'); setEditingId(null); setFormError("");
+        setNewProject({ title: '', categories: [], year: '2026', projectType: 'Individual', tools: [], description: '', detailBlocks: [] });
+        setCoverMedia(null); setNewPlayground({ categories: [] }); setPgMedia(null);
+      };
+
+      const handleDrop = (e, index, isPlayground) => {
+        e.preventDefault(); if (draggedIdx === null) return;
+        const list = isPlayground ? playgroundItems : projects;
+        const draggedItem = list[draggedIdx];
+        const remaining = list.filter((_, idx) => idx !== draggedIdx);
+        const reordered = [...remaining.slice(0, index), draggedItem, ...remaining.slice(index)];
+        if (isPlayground) setPlaygroundItems(reordered); else setProjects(reordered);
+        setDraggedIdx(null); setDragOverIdx(null);
+      };
+      const handleBlockDrop = (e, index) => {
+        e.preventDefault(); if (draggedBlockIdx === null) return;
+        const list = [...newProject.detailBlocks]; const draggedItem = list[draggedBlockIdx];
+        list.splice(draggedBlockIdx, 1); list.splice(index, 0, draggedItem);
+        setNewProject(prev => ({ ...prev, detailBlocks: list }));
+        setDraggedBlockIdx(null); setDragOverBlockIdx(null);
+      };
+      const handleAddCustomTool = (e) => {
+        e.preventDefault(); const tool = customToolInput.trim();
+        if (tool && !availableTools.includes(tool)) {
+          setAvailableTools([...availableTools, tool]); setNewProject(prev => ({ ...prev, tools: [...prev.tools, tool] }));
+        }
+        setCustomToolInput('');
+      };
+
+      const renderNavFilters = () => (
+        <nav className="fixed left-6 md:left-10 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-6 hidden md:flex pointer-events-auto">
+          {FILTERS.map(filter => (
+            <button key={filter} onClick={() => { setActiveFilter(filter); setHoveredId(null); }}
+              className={`font-mono text-xs tracking-[0.2em] transition-all duration-500 flex items-center gap-3 group ${activeFilter === filter ? 'text-black' : 'text-gray-400 hover:text-gray-800'}`}>
+              <span className={`h-[1px] bg-black transition-all duration-500 ${activeFilter === filter ? 'w-6 opacity-100' : 'w-0 opacity-0 group-hover:w-3 group-hover:opacity-50'}`} />
+              {filter}
+            </button>
+          ))}
+        </nav>
+      );
+
+      return (
+        <div className="relative min-h-screen w-full no-select bg-[#F4F4F0]">
+          <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
+
+          {/* HEADER */}
+          <header className="fixed top-0 left-0 w-full p-6 md:p-10 flex justify-between items-start z-50 pointer-events-none mix-blend-difference text-white">
+            <div className="pointer-events-auto cursor-pointer" onClick={() => navigateTo('work')}>
+              <h1 className="font-anton text-3xl md:text-4xl tracking-wide uppercase flex items-center">
+                Y<InteractiveO />U&ME
+              </h1>
+            </div>
+            <button onClick={() => setIsMenuOpen(true)} className="pointer-events-auto font-mono text-base md:text-lg uppercase font-bold hover:opacity-50 transition-opacity">
+              Menu
+            </button>
+          </header>
+
+          {/* FULL SCREEN MENU */}
+          <div className={`fixed inset-0 bg-black z-[100] transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] flex flex-col justify-center items-center pointer-events-auto ${isMenuOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+            <button onClick={() => setIsMenuOpen(false)} className="absolute top-6 right-6 md:top-10 md:right-10 font-mono text-sm uppercase font-bold text-white hover:opacity-50 transition-opacity">
+              Close
+            </button>
+            <nav className="flex flex-col items-center gap-4 md:gap-8 text-white w-full relative h-full justify-center">
+              {['work', 'playground', 'about', 'contact'].map((page) => (
+                <button key={page} onClick={() => navigateTo(page)}
+                  className="group relative overflow-hidden py-4 px-2 font-anton text-[12vw] md:text-[8vw] uppercase leading-[1.2] tracking-tighter flex items-center justify-center cursor-pointer"
+                >
+                  <span className={`block transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] group-hover:-translate-y-[130%] group-hover:-rotate-6 ${currentPage === page ? 'text-white' : 'text-gray-700'}`}>
+                    {page}
+                  </span>
+                  <span className="absolute block transition-transform duration-500 ease-[cubic-bezier(0.19,1,0.22,1)] translate-y-[130%] rotate-6 group-hover:translate-y-0 group-hover:rotate-0 text-white">
+                    {page}
+                  </span>
+                </button>
+              ))}
+              
+              {/* Admin Button Inside Menu */}
+              <button 
+                onClick={() => { setIsMenuOpen(false); setShowAuthModal(true); }} 
+                className="absolute bottom-10 font-mono text-xs uppercase font-bold tracking-widest text-gray-500 hover:text-white transition-colors"
+              >
+                Admin Access
+              </button>
+            </nav>
+          </div>
+
+          {/* GLOBAL NAV FILTERS & SCROLL SPY (WORK & PLAYGROUND) */}
+          {(currentPage === 'work' || currentPage === 'playground') && !selectedProject && !selectedPlaygroundItem && !showAdminModal && !showAuthModal && (
+            <>
+              {renderNavFilters()}
+              
+              {/* Scroll Progress / Project Indicator (Right Middle) */}
+              <div className="fixed right-4 md:right-10 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-3 pointer-events-auto mix-blend-difference">
+                {(currentPage === 'work' ? filteredProjects : filteredPlayground).map((item, index) => (
+                  <button 
+                    key={item.id}
+                    onClick={() => {
+                      const targetClass = currentPage === 'work' ? '.project-item' : '.playground-item';
+                      const el = document.querySelectorAll(targetClass)[index];
+                      if (el) {
+                        const rect = el.getBoundingClientRect();
+                        const top = rect.top + window.scrollY - window.innerHeight / 2 + rect.height / 2;
+                        window.scrollTo({ top, behavior: 'smooth' });
+                      }
+                    }}
+                    className={`transition-all duration-500 rounded-full ${
+                      activeProjectIdx === index 
+                        ? 'w-6 h-1 bg-white' 
+                        : 'w-4 h-[2px] bg-white/30 hover:bg-white/80'
+                    }`}
+                    aria-label={`Scroll to item`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* PAGE: WORK (HOME) */}
+          {currentPage === 'work' && (
+            <>
+              <div className="fixed inset-0 pointer-events-none z-30">
+                {projects.map(project => <MediaBackground key={project.id} project={project} isHovered={hoveredId === project.id} />)}
+              </div>
+              
+              <main className="relative z-10 flex flex-col items-center w-full pt-[45vh] pb-[55vh]">
+                {filteredProjects.map((project, index) => (
+                  <div key={project.id} className="project-item relative w-full flex items-center justify-center py-2 md:py-4 group">
+                    
+                    {/* 좌측 카테고리 정보 */}
+                    <div className={`hidden md:block absolute left-[15%] text-xs font-mono tracking-widest transition-all duration-500 ease-out pointer-events-none ${hoveredId === project.id ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
+                      {project.categories.join(', ')} <br/> <span className="text-gray-400">{project.projectType}</span>
+                    </div>
+                    
+                    {/* 텍스트 영역 */}
+                    <div 
+                      onClick={() => setSelectedProject(project)} 
+                      onMouseEnter={() => setHoveredId(project.id)} 
+                      onMouseLeave={() => setHoveredId(null)}
+                      className="cursor-pointer px-4 md:px-8"
+                    >
+                      <h2 className={`font-anton text-[12vw] md:text-[9vw] uppercase leading-[0.85] tracking-tighter transition-all duration-500 text-center
+                        ${hoveredId === project.id ? 'text-transparent' : hoveredId ? 'text-gray-200/40 blur-[2px] scale-95' : 'text-[#D4D4D0] hover:text-black'}
+                      `}>
+                        {project.title}
+                      </h2>
+                    </div>
+
+                    {/* 우측 연도 정보 */}
+                    <div className={`hidden md:block absolute right-[15%] text-xs font-mono transition-all duration-500 ease-out pointer-events-none ${hoveredId === project.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
+                      {project.year}
+                    </div>
+                    
+                  </div>
+                ))}
+              </main>
+            </>
+          )}
+
+          {/* PAGE: PLAYGROUND */}
+          {currentPage === 'playground' && (
+            <main className="relative z-10 w-full pt-[25vh] pb-[55vh] px-6 md:px-32 lg:px-40 xl:px-52">
+              <h2 className="font-anton text-4xl md:text-6xl uppercase tracking-wide mb-12 text-center text-gray-800">Playground</h2>
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-6">
+                {filteredPlayground.map((item) => (
+                  <div key={item.id} onClick={() => setSelectedPlaygroundItem(item)} className="break-inside-avoid mb-6 w-full bg-gray-100 overflow-hidden relative group playground-item shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer">
+                    {item.mediaType === 'video' ? (
+                      <video src={item.mediaUrl} autoPlay loop muted playsInline className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" />
+                    ) : (
+                      <img src={item.mediaUrl} className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-5">
+                      <div className="flex flex-wrap gap-2">
+                        {item.categories.map(cat => <span key={cat} className="bg-white text-black text-[10px] font-bold font-mono px-2 py-1 uppercase tracking-wider">{cat}</span>)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </main>
+          )}
+
+          {/* PAGE: ABOUT */}
+          {currentPage === 'about' && (
+            <main className="relative z-10 w-full min-h-screen pt-32 pb-24 px-6 md:px-12 flex items-center justify-center overflow-hidden">
+              <div className="w-full max-w-6xl mx-auto flex flex-col md:flex-row gap-10 md:gap-16 items-center justify-center">
+                
+                <div className="w-full md:w-[45%] flex justify-center items-center perspective-[1200px]">
+                  <div className="relative group w-[75vw] md:w-[32vw] max-w-[400px] aspect-[3/4]">
+                    <div className="w-full h-full bg-gray-200 overflow-hidden transition-transform duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]"
+                      style={{ transform: 'rotateY(12deg)', transformStyle: 'preserve-3d' }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'rotateY(0deg)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'rotateY(12deg)'}>
+                      <img src={aboutData.profileUrl} alt="Profile" className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-[cubic-bezier(0.19,1,0.22,1)]" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full md:w-[50%] flex flex-col gap-6 z-10 md:pr-32 lg:pr-40 max-w-[400px]">
+                  <div>
+                    <h3 className="font-mono text-[10px] md:text-xs text-gray-500 uppercase tracking-widest font-bold mb-4">About Me</h3>
+                    <h2 className="font-anton text-4xl md:text-5xl lg:text-6xl uppercase tracking-tighter leading-[1.0] mb-6 text-black break-words">
+                      {aboutData.name}
+                    </h2>
+                    <div className="font-mono text-sm md:text-base text-gray-800 leading-relaxed whitespace-pre-wrap">
+                      {aboutData.bio}
+                    </div>
+                  </div>
+
+                  <div className="pt-4">
+                    <h3 className="font-mono text-[10px] md:text-xs text-gray-500 uppercase tracking-widest font-bold mb-4">Tools</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {aboutData.tools.map(tool => (
+                        <span key={tool} className="bg-black text-white px-3 py-1.5 font-mono text-[10px] uppercase font-bold tracking-widest cursor-default">
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          )}
+
+          {/* PAGE: CONTACT */}
+          {currentPage === 'contact' && (
+            <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 text-center">
+              <div className="flex flex-col items-center justify-center gap-12">
+                <div className="flex flex-col items-center">
+                  <h2 className="font-anton text-6xl md:text-9xl uppercase tracking-tighter leading-none mb-2 text-black">Contact</h2>
+                </div>
+                <a href={`mailto:${contactData.email}`} className="font-mono text-lg md:text-3xl border-b-2 border-black hover:text-gray-500 hover:border-gray-500 transition-colors pb-1 break-all px-4">
+                  {contactData.email}
+                </a>
+                 <div className="font-mono text-sm text-gray-500 uppercase tracking-widest mt-4">
+                   Available for freelance opportunities.
+                 </div>
+              </div>
+            </main>
+          )}
+
+          {/* EXPANDABLE SOCIAL LINKS */}
+          {!selectedProject && !selectedPlaygroundItem && !showAdminModal && !showAuthModal && (
+            <div className="fixed bottom-6 left-6 md:bottom-10 md:left-10 z-40 flex items-center gap-4 pointer-events-auto mix-blend-difference text-white h-10">
+              
+              <button 
+                onClick={() => setShowSocials(!showSocials)}
+                className="flex items-center justify-center transition-transform duration-500 w-10 h-10 hover:scale-110"
+                style={{ transform: showSocials ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                aria-label="Toggle Social Links"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+
+              {showSocials && (
+                <div className="flex items-center gap-3">
+                  {[
+                    { id: 'ig', name: 'IN', url: contactData.instagram },
+                    { id: 'li', name: 'LI', url: contactData.linkedin },
+                    { id: 'be', name: 'BE', url: contactData.behance }
+                  ].map((social, index) => (
+                    social.url && (
+                      <a 
+                        key={social.id} href={social.url} target="_blank" rel="noreferrer"
+                        className="flex items-center justify-center font-mono text-[10px] md:text-xs font-bold uppercase transition-all duration-500 ease-out opacity-0 translate-x-[-10px]"
+                        style={{ 
+                          animation: `slideRight 0.4s ease-out forwards ${index * 0.1}s` 
+                        }}
+                        title={social.name}
+                      >
+                        <span className="border-b border-transparent hover:border-white transition-colors pb-0.5">
+                          {social.name}
+                        </span>
+                      </a>
+                    )
+                  ))}
+                </div>
+              )}
+              
+              <style dangerouslySetInnerHTML={{__html: `
+                @keyframes slideRight {
+                  to { opacity: 1; transform: translateX(0); }
+                }
+              `}} />
+            </div>
+          )}
+
+          {/* AUTH MODAL */}
+          {showAuthModal && (
+            <div className="fixed inset-0 bg-[#F4F4F0]/90 backdrop-blur-sm z-[250] flex items-center justify-center p-6 animate-fade-in pointer-events-auto">
+              <form onSubmit={handleLogin} className="bg-white p-8 border border-gray-200 shadow-2xl max-w-sm w-full flex flex-col gap-6">
+                <div>
+                  <h3 className="font-anton text-2xl uppercase tracking-wider mb-2 text-black">Admin Access</h3>
+                  <p className="font-mono text-xs text-gray-500 uppercase tracking-widest">Enter password to continue</p>
+                </div>
+                <div>
+                  <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setAuthError(false); }} placeholder="Password" 
+                    className={`w-full bg-gray-50 border p-3 font-mono text-sm focus:outline-none transition-colors text-black ${authError ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-black'}`} />
+                  {authError && <p className="text-red-500 font-mono text-[10px] uppercase mt-2">Incorrect password</p>}
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <button type="button" onClick={() => { setShowAuthModal(false); setPwd(''); setAuthError(false); }} className="flex-1 py-3 border border-gray-300 text-black font-mono text-xs font-bold uppercase tracking-widest hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-1 py-3 bg-black text-white font-mono text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-colors">Login</button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ADMIN DASHBOARD */}
+          {showAdminModal && (
+            <div className="fixed inset-0 bg-[#F4F4F0] z-[200] flex flex-col md:flex-row overflow-hidden animate-fade-in font-sans text-black">
+              <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-300 bg-white flex md:flex-col shrink-0 z-10">
+                <div className="hidden md:block font-anton text-3xl tracking-wide m-6 uppercase text-black border-b border-gray-200 pb-6">
+                  Admin
+                </div>
+                <nav className="flex md:flex-col overflow-x-auto md:overflow-visible w-full font-mono text-[10px] md:text-xs uppercase tracking-widest">
+                  {['projects', 'playground', 'about', 'contact'].map(tab => (
+                     <button key={tab} onClick={() => {setAdminTab(tab); resetAdminState();}} 
+                      className={`px-4 py-4 md:py-3 whitespace-nowrap text-left transition-all ${adminTab === tab ? 'bg-black text-white font-bold' : 'text-gray-500 hover:bg-gray-100 hover:text-black'}`}>
+                      {tab === 'projects' ? 'Work Projects' : tab === 'playground' ? 'Playground' : tab === 'about' ? 'About Page' : 'Contact Page'}
+                    </button>
+                  ))}
+                </nav>
+                <div className="hidden md:block mt-auto border-t border-gray-200 p-6 pt-6">
+                  <button onClick={() => setShowAdminModal(false)} className="w-full text-left text-gray-500 hover:text-black transition-all font-mono text-xs uppercase tracking-widest">
+                    Exit Admin
+                  </button>
+                </div>
+                 <button onClick={() => setShowAdminModal(false)} className="md:hidden px-6 py-4 border-l border-gray-200 text-gray-500 font-mono text-[10px] uppercase font-bold whitespace-nowrap hover:bg-gray-100">
+                   Exit
+                 </button>
+              </aside>
+
+              <main className="flex-1 bg-[#F9F9F9] p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="max-w-6xl mx-auto">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-8 gap-4 border-b border-gray-200 pb-6">
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-black">
+                        {adminTab === 'about' ? 'About Page' : adminTab === 'contact' ? 'Contact Page' : (adminView === 'list' ? (adminTab === 'projects' ? 'Work Projects' : 'Playground') : (editingId ? 'Edit Item' : 'Create New Item'))}
+                      </h2>
+                    </div>
+                    {(adminTab !== 'about' && adminTab !== 'contact') && (
+                      adminView === 'list' ? (
+                        <button onClick={() => setAdminView('form')} className="bg-black text-white px-6 py-3 font-mono text-[10px] md:text-xs uppercase tracking-widest font-bold hover:bg-gray-800 transition-colors w-full sm:w-auto">
+                          Add New
+                        </button>
+                      ) : (
+                        <button onClick={() => setAdminView('list')} className="bg-white border border-gray-300 text-black px-6 py-3 font-mono text-[10px] md:text-xs uppercase tracking-widest font-bold hover:bg-gray-50 transition-colors w-full sm:w-auto">
+                          Back to List
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  {adminTab === 'about' ? (
+                    <div className="max-w-4xl">
+                      {formError && <div className="bg-gray-100 border border-black text-black p-4 text-sm font-mono font-bold uppercase tracking-wider mb-8">{formError}</div>}
+                      <form onSubmit={handleSaveAbout} className="flex flex-col gap-8 bg-white p-6 md:p-8 border border-gray-200 shadow-sm">
+                        <div className="flex flex-col md:flex-row gap-8">
+                          <div className="w-full md:w-1/3">
+                            <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Profile Image</label>
+                            <div className="border border-dashed border-gray-300 p-4 bg-gray-50 text-center">
+                              {aboutImageFile || aboutData.profileUrl ? (
+                                <img src={aboutImageFile ? URL.createObjectURL(aboutImageFile) : aboutData.profileUrl} className="w-full aspect-[3/4] object-cover mb-4 border border-gray-200" />
+                              ) : null}
+                              <input type="file" accept="image/*" onChange={e => setAboutImageFile(e.target.files[0])} className="w-full text-xs font-mono file:mr-4 file:py-1 file:px-2 file:border file:border-gray-300 file:bg-white file:text-black file:font-mono file:uppercase file:cursor-pointer" />
+                            </div>
+                          </div>
+                          <div className="w-full md:w-2/3 flex flex-col gap-6">
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Display Name</label>
+                              <input value={aboutData.name} onChange={e => setAboutData({...aboutData, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-xl text-black font-anton uppercase focus:outline-none focus:border-black" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Biography</label>
+                              <textarea value={aboutData.bio} onChange={e => setAboutData({...aboutData, bio: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black font-mono focus:outline-none focus:border-black h-48 resize-none" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Toolkit</label>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {aboutData.tools.map(tool => (
+                                  <div key={tool} className="flex items-center gap-2 bg-black text-white px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest">
+                                    <span>{tool}</span>
+                                    <button type="button" onClick={() => setAboutData(prev => ({...prev, tools: prev.tools.filter(t => t !== tool)}))} className="hover:text-red-400">×</button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 max-w-sm border-b border-gray-300 focus-within:border-black transition-colors">
+                                <input value={aboutToolInput} onChange={(e) => setAboutToolInput(e.target.value)} onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      if (aboutToolInput.trim() && !aboutData.tools.includes(aboutToolInput.trim())) {
+                                        setAboutData(prev => ({...prev, tools: [...prev.tools, aboutToolInput.trim()]}));
+                                        setAboutToolInput('');
+                                      }
+                                    }
+                                  }} className="w-full bg-transparent py-2 text-black text-xs font-mono focus:outline-none" />
+                                <button type="button" onClick={() => {
+                                    if (aboutToolInput.trim() && !aboutData.tools.includes(aboutToolInput.trim())) {
+                                      setAboutData(prev => ({...prev, tools: [...prev.tools, aboutToolInput.trim()]}));
+                                      setAboutToolInput('');
+                                    }
+                                }} className="font-mono text-xs font-bold uppercase tracking-widest text-black hover:text-gray-500">ADD</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-200 pt-6 mt-2">
+                          <button type="submit" className="w-full md:w-auto px-10 py-4 bg-black text-white font-mono text-sm uppercase tracking-widest font-bold hover:bg-gray-800 transition-colors">Save About Page</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : adminTab === 'contact' ? (
+                    <div className="max-w-4xl">
+                      {formError && <div className="bg-gray-100 border border-black text-black p-4 text-sm font-mono font-bold uppercase tracking-wider mb-8">{formError}</div>}
+                      <form onSubmit={handleSaveContact} className="flex flex-col gap-6 bg-white p-6 md:p-8 border border-gray-200 shadow-sm">
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
+                          <input type="email" value={contactData.email} onChange={e => setContactData({...contactData, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black font-mono focus:outline-none focus:border-black" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Instagram URL</label>
+                          <input type="url" value={contactData.instagram} onChange={e => setContactData({...contactData, instagram: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black font-mono focus:outline-none focus:border-black" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">LinkedIn URL</label>
+                          <input type="url" value={contactData.linkedin} onChange={e => setContactData({...contactData, linkedin: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black font-mono focus:outline-none focus:border-black" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Behance URL</label>
+                          <input type="url" value={contactData.behance} onChange={e => setContactData({...contactData, behance: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black font-mono focus:outline-none focus:border-black" />
+                        </div>
+                        <div className="border-t border-gray-200 pt-6 mt-2">
+                          <button type="submit" className="w-full md:w-auto px-10 py-4 bg-black text-white font-mono text-sm uppercase tracking-widest font-bold hover:bg-gray-800 transition-colors">Save Contact Info</button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : adminView === 'list' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {(adminTab === 'projects' ? projects : playgroundItems).map((item, index) => (
+                        <div key={item.id} draggable
+                          onDragStart={(e) => { setDraggedIdx(index); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.style.opacity = '0.4', 0); }}
+                          onDragEnter={(e) => { e.preventDefault(); setDragOverIdx(index); }} onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleDrop(e, index, adminTab === 'playground')}
+                          onDragEnd={(e) => { e.target.style.opacity = '1'; setDraggedIdx(null); setDragOverIdx(null); }}
+                          className={`bg-white border ${dragOverIdx === index ? 'border-black border-dashed bg-gray-50' : 'border-gray-200'} p-5 flex flex-col gap-4 hover:border-gray-400 transition-all duration-300 cursor-grab active:cursor-grabbing`}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex flex-wrap gap-1.5">
+                              {item.categories.map(c => <span key={c} className="border border-gray-300 text-black text-[10px] font-bold px-2 py-1 uppercase tracking-wider">{c}</span>)}
+                            </div>
+                            <div className="text-gray-400 cursor-grab p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg></div>
+                          </div>
+                          <div className="w-full h-40 bg-gray-100 overflow-hidden relative border border-gray-200">
+                            {item.mediaType === 'image' ? ( <img src={item.mediaUrl} className="w-full h-full object-cover grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all"/> ) : ( <video src={item.mediaUrl} className="w-full h-full object-cover grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all" /> )}
+                            {item.mediaType === 'video' && <div className="absolute top-2 right-2 bg-white border border-gray-200 text-black text-[9px] px-2 py-1 uppercase font-bold tracking-widest">Video</div>}
+                          </div>
+                          <div className="flex-1 flex flex-col justify-between border-t border-gray-100 pt-4 mt-2">
+                          {adminTab === 'projects' && (
+                            <div className="mb-4">
+                              <h4 className="font-bold text-base text-black mb-1 truncate uppercase">{item.title}</h4>
+                              <p className="text-xs text-gray-500 font-mono uppercase tracking-wider truncate">{item.projectType} / {item.year}</p>
+                            </div>
+                          )}
+                          <div className="flex gap-2 mt-auto">
+                            <button onClick={() => {
+                              if (adminTab === 'projects') { setNewProject({ title: item.title, categories: item.categories, year: item.year, projectType: item.projectType || 'Individual', tools: item.tools || [], description: item.description, detailBlocks: item.detailBlocks || [] }); } 
+                              else { setNewPlayground({ categories: item.categories }); }
+                              setEditingId(item.id); setAdminView('form');
+                              }} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-black text-xs font-mono font-bold uppercase tracking-widest transition-colors">Edit</button>
+                            <button onClick={() => {
+                              if (adminTab === 'projects') setProjects(projects.filter(p => p.id !== item.id));
+                              else setPlaygroundItems(playgroundItems.filter(p => p.id !== item.id));
+                            }} className="flex-1 py-2 border border-gray-200 hover:bg-black hover:text-white text-black text-xs font-mono font-bold uppercase tracking-widest transition-colors">Delete</button>
+                          </div>
+                          </div>
+                        </div>
+                      ))}
+                      {(adminTab === 'projects' ? projects : playgroundItems).length === 0 && (
+                        <div className="col-span-full py-20 flex flex-col items-center justify-center border border-dashed border-gray-300 bg-gray-50 text-gray-400 font-mono text-sm uppercase tracking-widest"><p>No items found.</p></div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="max-w-4xl">
+                      {formError && <div className="bg-gray-100 border border-black text-black p-4 text-sm font-mono font-bold uppercase tracking-wider mb-8">{formError}</div>}
+                      {adminTab === 'projects' ? (
+                        <form onSubmit={handleSaveProject} className="flex flex-col gap-6 md:gap-8">
+                          <div className="bg-white p-6 md:p-8 border border-gray-200 flex flex-col gap-6">
+                            <h3 className="font-mono text-sm font-bold uppercase tracking-widest border-b border-gray-200 pb-4 mb-2">Basic Info</h3>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Project Title</label>
+                              <input required value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} className="w-full bg-transparent border-b border-gray-300 py-3 text-black text-xl uppercase focus:outline-none focus:border-black transition-all" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-3">Categories</label>
+                              <div className="flex flex-wrap gap-2">
+                                {FILTERS.filter(f => f !== 'ALL').map(cat => (
+                                  <label key={cat} className={`cursor-pointer border px-4 py-2 text-xs font-mono font-bold uppercase tracking-widest transition-all ${newProject.categories.includes(cat) ? 'bg-black border-black text-white' : 'bg-white border-gray-300 text-gray-500'}`}>
+                                    <input type="checkbox" className="hidden" checked={newProject.categories.includes(cat)} onChange={() => setNewProject(p => ({...p, categories: p.categories.includes(cat) ? p.categories.filter(c => c !== cat) : [...p.categories, cat]}))} />
+                                    {cat}
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Year</label>
+                                <input value={newProject.year} onChange={e => setNewProject({...newProject, year: e.target.value})} className="w-full bg-transparent border-b border-gray-300 py-2 text-black text-sm focus:outline-none focus:border-black" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Project Type</label>
+                                <div className="flex gap-2">
+                                  {['Individual', 'Group'].map(type => (
+                                    <button key={type} type="button" onClick={() => setNewProject({...newProject, projectType: type})} className={`flex-1 py-2 text-[10px] md:text-xs font-mono font-bold uppercase tracking-widest border transition-colors ${newProject.projectType === type ? 'bg-black text-white border-black' : 'bg-white text-gray-500 border-gray-300'}`}>{type}</button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-3">Tools Used</label>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {availableTools.map(tool => (
+                                  <label key={tool} className={`cursor-pointer border px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest transition-all ${newProject.tools.includes(tool) ? 'bg-black border-black text-white' : 'bg-white border-gray-300 text-gray-500'}`}>
+                                    <input type="checkbox" className="hidden" checked={newProject.tools.includes(tool)} onChange={() => setNewProject(p => ({...p, tools: p.tools.includes(tool) ? p.tools.filter(t => t !== tool) : [...p.tools, tool]}))} />
+                                    {tool}
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 max-w-sm border-b border-gray-300 focus-within:border-black transition-colors">
+                                <input value={customToolInput} onChange={(e) => setCustomToolInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddCustomTool(e)} className="w-full bg-transparent py-2 text-black text-xs font-mono focus:outline-none" />
+                                <button type="button" onClick={handleAddCustomTool} className="font-mono text-xs font-bold uppercase tracking-widest text-black">ADD</button>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Cover Media</label>
+                                <div className="border border-dashed border-gray-300 p-4 md:p-8 bg-gray-50 overflow-hidden">
+                                  <input type="file" accept="image/*,video/*" onChange={e => setCoverMedia(e.target.files[0])} className="w-full text-[10px] md:text-xs font-mono text-gray-500 file:mr-2 md:file:mr-4 file:py-1 md:file:py-2 file:px-2 md:file:px-4 file:border file:border-gray-300 file:bg-white file:text-black file:uppercase file:cursor-pointer" />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Description</label>
+                                <textarea value={newProject.description} onChange={e => setNewProject({...newProject, description: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 text-sm text-black focus:outline-none focus:border-black h-24 resize-none" />
+                              </div>
+                          </div>
+                          
+                          <div className="bg-white p-6 md:p-8 border border-gray-200 flex flex-col gap-6">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end border-b border-gray-200 pb-4 mb-2 gap-4">
+                              <div>
+                                <h3 className="font-mono text-sm font-bold uppercase tracking-widest text-black mb-1">Detail Page</h3>
+                                <p className="text-xs text-gray-400 font-mono tracking-wider">Drag to reorder</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button type="button" onClick={() => addDetailBlock('text')} className="bg-black text-white px-4 py-2 font-mono text-[10px] md:text-xs uppercase tracking-widest">Add Text</button>
+                                <button type="button" onClick={() => addDetailBlock('media')} className="bg-white text-black border border-gray-300 px-4 py-2 font-mono text-[10px] md:text-xs uppercase tracking-widest">Add Media</button>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-4">
+                              {newProject.detailBlocks.map((block, idx) => (
+                                <div key={block.id} draggable
+                                  onDragStart={(e) => { setDraggedBlockIdx(idx); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => e.target.style.opacity = '0.4', 0); }}
+                                  onDragEnter={(e) => { e.preventDefault(); setDragOverBlockIdx(idx); }} onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => handleBlockDrop(e, idx)} onDragEnd={(e) => { e.target.style.opacity = '1'; setDraggedBlockIdx(null); setDragOverBlockIdx(null); }}
+                                  className={`bg-[#FAFAFA] border ${dragOverBlockIdx === idx ? 'border-black border-dashed' : 'border-gray-200'} p-3 md:p-5 flex gap-2 md:gap-4 cursor-grab`}
+                                >
+                                  <div className="pt-2 text-gray-300"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg></div>
+                                  <div className="flex-1 border-l border-gray-200 pl-2 md:pl-4 overflow-hidden">
+                                    {block.type === 'text' ? (
+                                      <>
+                                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-3 pb-3 border-b border-gray-200">
+                                          <div className="flex gap-2">
+                                            <span className="hidden sm:inline text-[10px] text-gray-400 font-mono uppercase self-center mr-1">Align</span>
+                                            {['left', 'center', 'right'].map(align => (
+                                              <button type="button" key={align} onClick={() => updateDetailBlockStyle(block.id, 'align', align)} className={`px-2 py-1 text-[10px] font-mono uppercase border ${block.align === align ? 'bg-black text-white' : 'bg-white text-gray-500'}`}>{align}</button>
+                                            ))}
+                                          </div>
+                                          <div className="flex gap-2 sm:border-l border-gray-200 sm:pl-4">
+                                            <span className="hidden sm:inline text-[10px] text-gray-400 font-mono uppercase self-center mr-1">Font</span>
+                                            {['sans', 'mono', 'anton'].map(font => (
+                                              <button type="button" key={font} onClick={() => updateDetailBlockStyle(block.id, 'font', font)} className={`px-2 py-1 text-[10px] font-mono uppercase border ${block.font === font ? 'bg-black text-white' : 'bg-white text-gray-500'}`}>{font}</button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <textarea value={block.content} onChange={e => updateDetailBlockText(block.id, e.target.value)} className="w-full p-0 bg-transparent border-none outline-none resize-none text-black text-sm" rows={3} />
+                                      </>
+                                    ) : (
+                                      <div className="border border-dashed border-gray-300 bg-white p-4 overflow-hidden">
+                                        <input type="file" accept="image/*,video/*" onChange={e => updateDetailBlockMedia(block.id, e.target.files[0])} className="w-full text-[10px] font-mono file:mr-2 file:py-1 file:px-2 file:border file:border-gray-300 file:bg-gray-50 file:text-black file:uppercase cursor-pointer" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button type="button" onClick={() => removeDetailBlock(block.id)} className="text-gray-400 hover:text-black font-mono text-[10px] md:text-xs tracking-widest self-start pl-1 md:pl-2">X</button>
+                                </div>
+                              ))}
+                              {newProject.detailBlocks.length === 0 && <div className="py-8 border border-dashed border-gray-300 bg-gray-50 text-center text-gray-400 font-mono text-xs uppercase tracking-widest">No blocks</div>}
+                            </div>
+                          </div>
+                          <div className="flex gap-4">
+                            <button type="button" onClick={() => setAdminView('list')} className="w-1/3 border border-gray-300 bg-white text-black py-4 font-mono text-sm uppercase tracking-widest font-bold">Cancel</button>
+                            <button type="submit" className="w-2/3 bg-black text-white py-4 font-mono text-sm uppercase tracking-widest font-bold">{editingId ? 'Save' : 'Publish'}</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleSavePlayground} className="flex flex-col gap-6 bg-white p-6 md:p-8 border border-gray-200">
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-3">Categories</label>
+                            <div className="flex flex-wrap gap-2">
+                              {FILTERS.filter(f => f !== 'ALL').map(cat => (
+                                <label key={cat} className={`cursor-pointer border px-4 py-2 text-xs font-mono font-bold uppercase tracking-widest transition-all ${newPlayground.categories.includes(cat) ? 'bg-black border-black text-white' : 'bg-white border-gray-300 text-gray-500'}`}>
+                                  <input type="checkbox" className="hidden" checked={newPlayground.categories.includes(cat)} onChange={() => setNewPlayground(p => ({...p, categories: p.categories.includes(cat) ? p.categories.filter(c => c !== cat) : [...p.categories, cat]}))} />
+                                  {cat}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-gray-500 uppercase tracking-widest mb-2">Media File</label>
+                            <div className="border border-dashed border-gray-300 p-4 md:p-8 bg-gray-50 overflow-hidden">
+                              <input type="file" accept="image/*,video/*" onChange={e => setPgMedia(e.target.files[0])} className="w-full text-[10px] md:text-xs font-mono text-gray-500 file:mr-2 md:file:mr-4 file:py-1 md:file:py-2 file:px-2 md:file:px-4 file:border file:border-gray-300 file:bg-white file:text-black file:uppercase cursor-pointer" />
+                            </div>
+                          </div>
+                          <div className="flex gap-4 mt-4">
+                            <button type="button" onClick={() => setAdminView('list')} className="w-1/3 border border-gray-300 bg-white text-black py-4 font-mono text-sm uppercase tracking-widest font-bold">Cancel</button>
+                            <button type="submit" className="w-2/3 bg-black text-white py-4 font-mono text-sm uppercase tracking-widest font-bold">{editingId ? 'Save' : 'Publish'}</button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </main>
+            </div>
+          )}
+
+          {/* DETAIL PAGE MODAL (WORK) */}
+          {selectedProject && (
+            <div className="fixed inset-0 bg-[#F4F4F0] z-[150] flex flex-col pointer-events-auto overflow-y-auto animate-fade-in">
+              <div className="w-full p-6 md:p-10 flex justify-between items-start sticky top-0 bg-[#F4F4F0]/90 backdrop-blur-sm z-10 gap-4">
+                <div className="flex-1 max-w-[80%] md:max-w-none">
+                  <h2 className="font-anton text-4xl md:text-6xl uppercase tracking-wide break-words">{selectedProject.title}</h2>
+                  <div className="flex flex-wrap gap-4 md:gap-6 mt-4 font-mono text-xs text-gray-500 uppercase tracking-widest">
+                    <p>Categories <br/><span className="text-black font-bold text-[10px] md:text-sm">{selectedProject.categories.join(', ')}</span></p>
+                    <p>Project Type <br/><span className="text-black font-bold text-[10px] md:text-sm">{selectedProject.projectType || 'Individual'}</span></p>
+                    <p>Year <br/><span className="text-black font-bold text-[10px] md:text-sm">{selectedProject.year}</span></p>
+                    <p>Tools <br/><span className="text-black font-bold text-[10px] md:text-sm">{(selectedProject.tools || []).join(', ') || 'N/A'}</span></p>
+                  </div>
+                </div>
+                
+                <button onClick={() => setSelectedProject(null)} className="w-10 h-10 md:w-12 md:h-12 border-2 border-black rounded-full flex items-center justify-center hover:bg-black hover:text-white transition-all duration-300 shrink-0 group" aria-label="Close">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-300 group-hover:rotate-90">
+                    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <div className="w-full max-w-5xl mx-auto px-6 md:px-10 pb-32 mt-4 space-y-12 md:space-y-20">
+                <div className="w-full overflow-hidden shadow-2xl bg-black">
+                  {selectedProject.mediaType === 'video' ? (
+                    <CustomVideoPlayer src={selectedProject.mediaUrl} className="max-h-[50vh] md:max-h-[70vh]" />
+                  ) : (
+                    <img src={selectedProject.mediaUrl} className="w-full max-h-[50vh] md:max-h-[70vh] object-contain bg-gray-100" />
+                  )}
+                </div>
+                
+                {selectedProject.description && (
+                  <div className="font-mono text-sm md:text-lg text-gray-800 leading-relaxed max-w-3xl border-l-4 border-black pl-4 md:pl-6">
+                    {selectedProject.description.split('\n').map((line, idx) => <p key={idx} className="mb-2">{line}</p>)}
+                  </div>
+                )}
+
+                {selectedProject.detailBlocks && selectedProject.detailBlocks.map(block => (
+                  <div key={block.id} className="w-full flex justify-center">
+                    {block.type === 'text' ? (
+                      <div className={`text-sm text-gray-800 leading-relaxed max-w-3xl w-full px-6
+                        ${block.align === 'center' ? 'text-center' : block.align === 'right' ? 'text-right' : 'text-left'}
+                        ${block.font === 'anton' ? 'font-anton text-2xl md:text-4xl uppercase' : block.font === 'mono' ? 'font-mono text-[10px] md:text-sm' : 'font-sans text-sm md:text-base'}
+                      `}>
+                        {block.content.split('\n').map((line, idx) => <p key={idx} className="mb-4">{line}</p>)}
+                      </div>
+                    ) : block.type === 'media' && block.content ? (
+                      <div className="w-full bg-black shadow-lg">
+                        {block.mediaType === 'video' ? ( <CustomVideoPlayer src={block.content} /> ) : ( <img src={block.content} className="w-full object-cover" /> )}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PLAYGROUND LIGHTBOX MODAL */}
+          {selectedPlaygroundItem && (
+            <div 
+              className="fixed inset-0 z-[300] flex items-center justify-center p-4 md:p-12 bg-white/60 backdrop-blur-md animate-fade-in pointer-events-auto"
+              onClick={() => setSelectedPlaygroundItem(null)}
+            >
+              <button 
+                onClick={() => setSelectedPlaygroundItem(null)} 
+                className="absolute top-4 right-4 md:top-6 md:right-6 w-10 h-10 md:w-12 md:h-12 border-2 border-black rounded-full flex items-center justify-center hover:bg-black hover:text-white transition-all duration-300 shrink-0 group z-50 bg-transparent" 
+                aria-label="Close"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform duration-300 group-hover:rotate-90">
+                  <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+              
+              <div 
+                className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {selectedPlaygroundItem.mediaType === 'video' ? (
+                  <CustomVideoPlayer src={selectedPlaygroundItem.mediaUrl} className="max-w-full max-h-[85vh] shadow-2xl rounded-sm" />
+                ) : (
+                  <img src={selectedPlaygroundItem.mediaUrl} alt="Playground Art" className="max-w-full max-h-[85vh] object-contain shadow-2xl rounded-sm" />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
